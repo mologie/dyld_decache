@@ -164,6 +164,7 @@ struct load_command {
 #define LC_VERSION_MIN_IPHONEOS 0x25
 #define LC_FUNCTION_STARTS 0x26
 #define LC_DYLD_ENVIRONMENT 0x27
+#define LC_DATA_IN_CODE 0x29
 
 struct segment_command : public load_command {
 	char		segname[16];
@@ -278,6 +279,11 @@ struct dyld_info_command : public load_command {
     uint32_t   lazy_bind_size;
     uint32_t   export_off;
     uint32_t   export_size;
+};
+
+struct data_in_code_command : public load_command {
+    uint32_t dataoff;
+    uint32_t datasize;
 };
 
 struct dylib {
@@ -853,6 +859,13 @@ private:
                 dicmd.export_off = _new_linkedit_offsets.export_off;
                 dicmd.bind_size = _new_linkedit_offsets.bind_size;
                 fwrite(&dicmd, sizeof(dicmd), 1, _f);
+                break;
+            }
+
+            case LC_DATA_IN_CODE: {
+                data_in_code_command diccmd = *static_cast<const data_in_code_command*>(cmd);
+                this->fix_offset(diccmd.dataoff);
+                fwrite(&diccmd, sizeof(diccmd), 1, _f);
                 break;
             }
         }
