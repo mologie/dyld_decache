@@ -281,11 +281,6 @@ struct dyld_info_command : public load_command {
     uint32_t   export_size;
 };
 
-struct data_in_code_command : public load_command {
-    uint32_t dataoff;
-    uint32_t datasize;
-};
-
 struct dylib {
     uint32_t name;
     uint32_t timestamp;
@@ -688,7 +683,7 @@ class DecachingFile : public MachOFile {
              tocoff, modtaboff, extrefsymoff,
                indirectsymoff, extreloff, locreloff, // dysymtab
              dataoff,    // linkedit_data_command (dummy)
-               dataoff_cs, dataoff_ssi, dataoff_fs;
+               dataoff_cs, dataoff_ssi, dataoff_fs, dataoff_dic;
         long bind_size;
         int32_t strsize;
     } _new_linkedit_offsets;
@@ -830,7 +825,8 @@ private:
 
             case LC_CODE_SIGNATURE:
             case LC_SEGMENT_SPLIT_INFO: 
-            case LC_FUNCTION_STARTS: {
+            case LC_FUNCTION_STARTS:
+            case LC_DATA_IN_CODE: {
                 linkedit_data_command ldcmd = *static_cast<const linkedit_data_command*>(cmd);
                 if (ldcmd.cmd == LC_CODE_SIGNATURE)
                     ldcmd.dataoff = _new_linkedit_offsets.dataoff_cs;
@@ -838,6 +834,8 @@ private:
                     ldcmd.dataoff = _new_linkedit_offsets.dataoff_ssi;
                 else if (ldcmd.cmd == LC_FUNCTION_STARTS)
                     ldcmd.dataoff = _new_linkedit_offsets.dataoff_fs;
+                else if (ldcmd.cmd == LC_DATA_IN_CODE)
+                    ldcmd.dataoff = _new_linkedit_offsets.dataoff_dic;
                 fwrite(&ldcmd, sizeof(ldcmd), 1, _f);
                 break;
             }
@@ -859,13 +857,6 @@ private:
                 dicmd.export_off = _new_linkedit_offsets.export_off;
                 dicmd.bind_size = _new_linkedit_offsets.bind_size;
                 fwrite(&dicmd, sizeof(dicmd), 1, _f);
-                break;
-            }
-
-            case LC_DATA_IN_CODE: {
-                data_in_code_command diccmd = *static_cast<const data_in_code_command*>(cmd);
-                this->fix_offset(diccmd.dataoff);
-                fwrite(&diccmd, sizeof(diccmd), 1, _f);
                 break;
             }
         }
@@ -1408,7 +1399,8 @@ void DecachingFile::write_real_linkedit(const load_command* cmd) {
 
         case LC_CODE_SIGNATURE:
         case LC_SEGMENT_SPLIT_INFO:
-        case LC_FUNCTION_STARTS: {
+        case LC_FUNCTION_STARTS:
+        case LC_DATA_IN_CODE: {
             const linkedit_data_command* cmdvar = static_cast<const linkedit_data_command*>(cmd);
             TRY_WRITE(dataoff, datasize, 1);
             if (cmd->cmd == LC_CODE_SIGNATURE)
@@ -1417,6 +1409,8 @@ void DecachingFile::write_real_linkedit(const load_command* cmd) {
                 _new_linkedit_offsets.dataoff_ssi = _new_linkedit_offsets.dataoff;
             else if (cmd->cmd == LC_FUNCTION_STARTS)
                 _new_linkedit_offsets.dataoff_fs = _new_linkedit_offsets.dataoff;
+            else if (cmd->cmd == LC_DATA_IN_CODE)
+                _new_linkedit_offsets.dataoff_dic = _new_linkedit_offsets.dataoff;
             break;
         }
     }
